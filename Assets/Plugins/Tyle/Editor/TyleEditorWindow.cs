@@ -114,6 +114,7 @@ public class TyleEditorWindow : EditorWindow
 	/// </summary>
 	void OnFocus()
 	{
+		GatherTileSets();
 		GatherTextures();
 	}
 
@@ -130,15 +131,31 @@ public class TyleEditorWindow : EditorWindow
 			Repaint();
 
 		//get some sizes that we'll use later
-		inspectorWidth = position.width * .20f - 12;
+		inspectorWidth = position.width * .20f;
 		scrollViewWidth = position.width - (inspectorWidth * 2);
-		scrollViewHeight = position.height - 24;
+		scrollViewHeight = position.height;
+
+		GUILayout.BeginVertical();
+		GUILayout.Space(6);
+		GUILayout.BeginHorizontal();
+
+		GUILayout.Space(6);
 
 		DrawLeftInspector();
 
+		GUILayout.Space(6);
+
 		DrawMap();
 
+		GUILayout.Space(6);
+
 		DrawRightInspector();
+
+		GUILayout.Space(6);
+
+		GUILayout.EndHorizontal();
+		GUILayout.Space(6);
+		GUILayout.EndVertical();
 	}
 
 	/// <summary>
@@ -155,8 +172,8 @@ public class TyleEditorWindow : EditorWindow
 	/// </summary>
 	void DrawMap()
 	{
-		//Scroll view for displaying the texture
-		GUILayout.BeginArea(new Rect(inspectorWidth + 12, 6, scrollViewWidth, scrollViewHeight));
+		//Scroll view for displaying the texture 
+		GUILayout.BeginVertical(GUILayout.Width(scrollViewWidth));
 		{
 			mapScrollPosition = GUILayout.BeginScrollView(mapScrollPosition);
 			{			
@@ -193,120 +210,111 @@ public class TyleEditorWindow : EditorWindow
 			}
 			GUILayout.EndScrollView();
 		}
-		GUILayout.EndArea();
+		GUILayout.EndVertical();
 	}
 
 	/// <summary>
 	/// Draws an inspector on the left that's used for the painting and map tools
 	/// Should be called from OnGUI
 	/// </summary>
-	void DrawLeftInspector()
-	{
-		GUILayout.BeginArea(new Rect(6, 6, inspectorWidth, scrollViewHeight));
-		{
-			rightInspectorScrollPosition = GUILayout.BeginScrollView(rightInspectorScrollPosition);
+	void DrawLeftInspector() 
+	{ 
+		GUILayout.BeginVertical();
+		{	
+
+			//Ask for which tileset we want to use
+			int newTileIndex = EditorGUILayout.Popup(tileSetIndex, tileSetList.ToArray());
+			
+			//If the tile set changes, repopulate the textures
+			if(newTileIndex != tileSetIndex)
 			{
-				
-				//Ask for which tileset we want to use
-				int newTileIndex = EditorGUILayout.Popup(tileSetIndex, tileSetList.ToArray());
-				
-				//If the tile set changes, repopulate the textures
-				if(newTileIndex != tileSetIndex)
+				tileSetIndex = newTileIndex;
+				GatherTextures();
+			}
+
+			EditorGUILayout.Space();
+			
+			//Draw anther scrollable panel for all the possible textures
+			selectionScrollPosition = 
+				GUILayout.BeginScrollView(selectionScrollPosition, GUILayout.Height(250));
+			{
+				int newSelectedTextureIndex = GUILayout.SelectionGrid(selectedTextureIndex, 
+				                                                      textureList.ToArray(),
+				                                                      1,
+				                                                      GUILayout.Width(inspectorWidth - 48),
+				                                                      GUILayout.Height(textureList.Count * 64));
+				//If the selected texture changes update some info
+				if(newSelectedTextureIndex != selectedTextureIndex)
 				{
-					tileSetIndex = newTileIndex;
-					GatherTextures();
-				}
-				
-
-				EditorGUILayout.Space();
-
-				
-				//Draw anther scrollable panel for all the possible textures
-				selectionScrollPosition = 
-					GUILayout.BeginScrollView(selectionScrollPosition, GUILayout.Height(250));
-				{
-					int newSelectedTextureIndex = GUILayout.SelectionGrid(selectedTextureIndex, 
-					                                                      textureList.ToArray(),
-					                                                      1,
-					                                                      GUILayout.Width(inspectorWidth - 48),
-					                                                      GUILayout.Height(textureList.Count * 64));
-					//If the selected texture changes update some info
-					if(newSelectedTextureIndex != selectedTextureIndex)
-					{
-						selectedTextureIndex = newSelectedTextureIndex;
-						
-						GetSelectedTexture();
-					}
-				}
-				GUILayout.EndScrollView();
-
-
-				EditorGUILayout.Space();
-				
-				//A button for reloading textures from the disk
-				if(GUILayout.Button("Reload Tiles"))
-				{
-					GatherTileSets();
-					GatherTextures();
-				}
-
-				EditorGUILayout.Space();
-				EditorGUILayout.Space();
-
-				
-				//Brush controls
-				currentBrush = (BrushType)EditorGUILayout.EnumPopup("Brush Type", currentBrush);
-				currentMode = (BrushMode)EditorGUILayout.EnumPopup("Brush Mode", currentMode);
-				
-
-				EditorGUILayout.Space();
-
-				
-				GUILayout.Label("Brush Size:\t\t\t\t\t " + brushSize);
-				
-				EditorGUILayout.Space ();
-				
-				//Map Creation Tools
-				GUILayout.Label("Map Creation");
-
-				mapWidth = EditorGUILayout.IntField("Map Width: ", mapWidth);
-				mapHeight = EditorGUILayout.IntField("Map Height: ", mapHeight);
-
-				//Round mapWidth and mapHeight to nearest power of two
-				mapWidth = Mathf.ClosestPowerOfTwo(mapWidth);
-				mapHeight = Mathf.ClosestPowerOfTwo(mapHeight);
-
-				if(GUILayout.Button("Create Map"))
-				{
-					bool createMap = true;
-
-					//Double check that we want to overwrite the map
-					if(mapLayerTextures.Count > 0)
-					{
-						if(!EditorUtility.DisplayDialog("Overwrite Map", "Are you sure you want to overwrite the current map?", "Yes", "No"))
-						{
-							createMap = false;
-						}
-					}
-
-					if(createMap)
-					{
-						tileMap = new Map(mapWidth, mapHeight);
-						tileMap.layers = 1;
-
-						Texture2D mapTexture = TyleEditorUtils.NewTransparentTexture(mapWidth, mapHeight);
-						mapLayerTextures.Add(mapTexture);
-
-						selectionSpaceTexture = TyleEditorUtils.NewTransparentTexture(mapWidth, mapHeight);
-						detailTexture = TyleEditorUtils.NewTransparentTexture(mapWidth, mapHeight);
-						
-						detailBox = new Rect(0,0, mapWidth, mapHeight);
-					}
+					selectedTextureIndex = newSelectedTextureIndex;
+					
+					GetSelectedTexture();
 				}
 			}
 			GUILayout.EndScrollView();
+
+
+			EditorGUILayout.Space();
+			
+			//A button for reloading textures from the disk
+			if(GUILayout.Button("Reload Tiles"))
+			{
+				GatherTileSets();
+				GatherTextures();
+			}
+	
+			EditorGUILayout.Space();
+			EditorGUILayout.Space();
+			
+			//Brush controls
+			currentBrush = (BrushType)EditorGUILayout.EnumPopup("Brush Type", currentBrush);
+			currentMode = (BrushMode)EditorGUILayout.EnumPopup("Brush Mode", currentMode);
+
+			EditorGUILayout.Space();
+
+			EditorGUILayout.LabelField("Brush Size", "" + brushSize);
+
+			EditorGUILayout.Space ();
+
+			//Map Creation Tools
+			GUILayout.Label("Map Creation");
+
+			mapWidth = EditorGUILayout.IntField("Map Width: ", mapWidth);
+			mapHeight = EditorGUILayout.IntField("Map Height: ", mapHeight);
+
+			//Round mapWidth and mapHeight to nearest power of two
+			mapWidth = Mathf.ClosestPowerOfTwo(mapWidth);
+			mapHeight = Mathf.ClosestPowerOfTwo(mapHeight);
+
+			if(GUILayout.Button("Create Map"))
+			{
+				bool createMap = true;
+
+				//Double check that we want to overwrite the map
+				if(mapLayerTextures.Count > 0)
+				{
+					if(!EditorUtility.DisplayDialog("Overwrite Map", "Are you sure you want to overwrite the current map?", "Yes", "No"))
+					{
+						createMap = false;
+					}
+				}
+
+				if(createMap)
+				{
+					tileMap = new Map(mapWidth, mapHeight);
+					tileMap.layers = 1;
+
+					Texture2D mapTexture = TyleEditorUtils.NewTransparentTexture(mapWidth, mapHeight);
+					mapLayerTextures.Add(mapTexture);
+
+					selectionSpaceTexture = TyleEditorUtils.NewTransparentTexture(mapWidth, mapHeight);
+					detailTexture = TyleEditorUtils.NewTransparentTexture(mapWidth, mapHeight);
+					
+					detailBox = new Rect(0,0, mapWidth, mapHeight);
+				}
+			}
 		}
-		GUILayout.EndArea();
+		GUILayout.EndVertical();
 	}
 
 	/// <summary>
@@ -315,7 +323,7 @@ public class TyleEditorWindow : EditorWindow
 	/// </summary>
 	void DrawRightInspector()
 	{
-		GUILayout.BeginArea(new Rect(inspectorWidth + scrollViewWidth + 12, 6, inspectorWidth - 12, scrollViewHeight));
+		GUILayout.BeginVertical(GUILayout.Width(inspectorWidth));
 		{
 			leftInspectorScrollPosition = GUILayout.BeginScrollView(leftInspectorScrollPosition);
 			{
@@ -455,7 +463,7 @@ public class TyleEditorWindow : EditorWindow
 			}
 			GUILayout.EndScrollView();
 		}
-		GUILayout.EndArea();
+		GUILayout.EndVertical();
 	}
 
 	/// <summary>
@@ -468,15 +476,18 @@ public class TyleEditorWindow : EditorWindow
 		//A button for saving out the map
 		if(GUILayout.Button("Save Map"))
 		{
-			string mapJson = Map.SerializeMap(tileMap);
-			
-			string path = EditorUtility.SaveFilePanel("Save Map", "Assets/Resources/Maps", "NewMap","map");
-			
-			//don't continue of they cancel
-			if(string.IsNullOrEmpty(path))
-				return;
-			
-			System.IO.File.WriteAllText(path, mapJson);
+			if(tileMap != null)
+			{
+				string mapJson = Map.SerializeMap(tileMap);
+				
+				string path = EditorUtility.SaveFilePanel("Save Map", "Assets/Resources/Maps", "NewMap","map");
+				
+				//don't continue of they cancel
+				if(string.IsNullOrEmpty(path))
+					return;
+				
+				System.IO.File.WriteAllText(path, mapJson);
+			}
 		}	
 		
 		//A button for loading a map
@@ -632,7 +643,8 @@ public class TyleEditorWindow : EditorWindow
 	/// </summary>
 	void HandleMouseEvents()
 	{
-		//Get Events				Check which window the mouse is over so that this doesn't fire inappropriately
+		//Get Events				
+		//Check which window the mouse is over so that this doesn't fire inappropriately
 		if(currentEvent == null || EditorWindow.mouseOverWindow == null || EditorWindow.mouseOverWindow.ToString() != "Tyle (TyleEditorWindow)")
 			return;
 
@@ -728,12 +740,16 @@ public class TyleEditorWindow : EditorWindow
 				switch(currentMode)
 				{
 				case BrushMode.Painting:
-
-					if(selectedTexture != null)
+					//If the current LayerIndex > number of layer textures, we don't have a selected layer
+					if(selectedTexture != null && currentLayerIndex < mapLayerTextures.Count)
 					{
 						Paint (targetPos, selectedTexture, mapLayerTextures[currentLayerIndex]);
 						//Add the tile to the map
 						tileMap.AddTile(currentLayerIndex, (int)targetPos.x, (int)targetPos.y, brushSize, brushSize, tileSetList[tileSetIndex], selectedTexture.name);
+					}
+					else
+					{
+						EditorUtility.DisplayDialog("No Layer!", "There is no layer selected", "Ok");
 					}
 					break;
 				case BrushMode.Erasing:
